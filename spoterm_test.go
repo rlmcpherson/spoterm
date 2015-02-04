@@ -45,25 +45,14 @@ var spotermTests = []struct {
 		true,
 		nil,
 	},
-
-	// termination time set after x seconds
-	//
-	//not ec2 instance, timeout request
-	//{
-	//func(w http.ResponseWriter, r *http.Request) {
-	//},
-	//time.Time{},
-	//true,
-	//fmt.Errorf("must be run on EC2 instance"),
-	//},
 }
 
-func TestSpotermChan(t *testing.T) {
+func TestSpotermNofify(t *testing.T) {
 
-	tp, nt, pi := termPath, netTimeout, pollInterval
-	defer func() { termPath, netTimeout, pollInterval = tp, nt, pi }()
-	pollInterval = 400 * time.Millisecond
-	netTimeout = 100 * time.Millisecond
+	tp, nt, pi := termPath, httpTimeout, pollInterval
+	defer func() { termPath, httpTimeout, pollInterval = tp, nt, pi }()
+	pollInterval = 200 * time.Millisecond
+	httpTimeout = 100 * time.Millisecond
 
 	for _, tc := range spotermTests {
 		// Set up http server
@@ -71,13 +60,13 @@ func TestSpotermChan(t *testing.T) {
 		defer server.Close()
 		termPath = server.URL
 
-		c, err := SpotermChan()
+		c, err := SpotermNotify()
 		if err != nil &&
 			err != tc.expErr &&
 			!strings.Contains(err.Error(), tc.expErr.Error()) {
 			t.Fatal(err)
 		}
-		tmr := time.NewTimer(1300 * time.Millisecond)
+		tmr := time.NewTimer(300 * time.Millisecond)
 		select {
 		case time, ok := <-c:
 			t.Log("time received: ", time, " ", tc.termTime)
@@ -89,16 +78,21 @@ func TestSpotermChan(t *testing.T) {
 			}
 		case <-tmr.C:
 			tmr.Stop()
-			t.Logf("time not received")
+			t.Logf("timeout")
+			if !tc.chOpen {
+				t.Fatalf("expected channel closed")
+			}
 		}
 		server.Close()
 	}
 }
 
-func TestSpotermChanNotEC2(t *testing.T) {
-	_, err := SpotermChan()
+func TestSpotermNotifyNotEC2(t *testing.T) {
+	httpTimeout = 200 * time.Millisecond
+	_, err := SpotermNotify()
 	if !(err != nil && strings.Contains(err.Error(), "must run on EC2 instance")) {
 		t.Fatal(err)
 	}
+	t.Log(err)
 
 }
