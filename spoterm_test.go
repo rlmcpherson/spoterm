@@ -1,6 +1,7 @@
 package spoterm
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -71,10 +72,10 @@ func TestSpotermNofify(t *testing.T) {
 		case time, ok := <-c:
 			t.Log("time received: ", time, " ", tc.termTime)
 			if time != tc.termTime {
-				t.Fatalf("expected: %s, got %s", tc.termTime, time)
+				t.Fatalf("expected: %v, got %v", tc.termTime, time)
 			}
 			if ok != tc.chOpen {
-				t.Fatalf("expected channel open: %s, got %s", tc.termTime, time)
+				t.Fatalf("expected channel open: %v, got %v", tc.termTime, time)
 			}
 		case <-tmr.C:
 			tmr.Stop()
@@ -95,4 +96,23 @@ func TestSpotermNotifyNotEC2(t *testing.T) {
 	}
 	t.Log(err)
 
+}
+
+func ExampleSpotermNotify() {
+	ch, err := SpotermNotify()
+	if err != nil {
+		// handle error
+		// an error will occur if run on a non-ec2 instance
+		log.Fatal(err)
+	}
+	go func() {
+		if t, ok := <-ch; ok {
+			// received termination-time
+			// run cleanup actions here
+			log.Printf("the instance will be terminated at %v", t)
+
+		} else {
+			log.Printf("SpotermNotify channel closed due to error")
+		}
+	}()
 }

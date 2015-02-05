@@ -8,14 +8,10 @@ package spoterm
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 )
-
-//TODO:
-// write example test
 
 const (
 	timeFormat = "2006-01-02T15:04:05Z" // from AWS docs, see url below
@@ -58,7 +54,6 @@ func SpotermNotify() (<-chan time.Time, error) {
 	return tc, nil
 }
 
-//
 func pollInstanceMetadata() (t time.Time, err error) {
 	client := http.Client{Timeout: httpTimeout}
 	resp, err := client.Get(termPath)
@@ -81,9 +76,8 @@ func pollInstanceMetadata() (t time.Time, err error) {
 	if err != nil {
 		return
 	}
-	// value may not be a time according to docs, so parse error is not fatal
-	if t, err = time.Parse(timeFormat, string(ts)); err != nil {
-		log.Println(err)
-	}
-	return t, nil
+	// value may be present but not be a time according to AWS docs,
+	// so parse error is not fatal
+	t, _ = time.Parse(timeFormat, string(ts))
+	return t, err
 }
