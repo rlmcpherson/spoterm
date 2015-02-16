@@ -80,5 +80,5 @@ func pollInstanceMetadata() (t time.Time, err error) {
 	// value may be present but not be a time according to AWS docs,
 	// so parse error is not fatal
 	t, _ = time.Parse(timeFormat, string(ts))
-	return t, err
+	return
 }

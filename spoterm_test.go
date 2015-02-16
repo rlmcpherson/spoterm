@@ -1,6 +1,7 @@
 package spoterm
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +35,15 @@ var spotermTests = []struct {
 		true,
 		nil,
 	},
+	{ // response error
+		func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte("t"))
+		},
+		time.Time{},
+		false,
+		fmt.Errorf("response error 500"),
+	},
 
 	// termination time set
 	{
@@ -48,13 +58,12 @@ var spotermTests = []struct {
 	},
 }
 
-func TestSpotermNofify(t *testing.T) {
+func TestSpotermNotify(t *testing.T) {
 
 	tp, nt, pi := termPath, httpTimeout, pollInterval
 	defer func() { termPath, httpTimeout, pollInterval = tp, nt, pi }()
-	pollInterval = 400 * time.Millisecond
+	pollInterval = 200 * time.Millisecond
 	httpTimeout = 100 * time.Millisecond
-
 	for _, tc := range spotermTests {
 		// Set up http server
 		server := httptest.NewServer(http.HandlerFunc(tc.handler))
@@ -63,15 +72,16 @@ func TestSpotermNofify(t *testing.T) {
 
 		c, err := SpotermNotify()
 		if err != nil {
+			t.Logf("error %v", err)
 			if strings.Contains(err.Error(), tc.expErr.Error()) {
-				return // error expected
+				continue // error expected and matched
 			}
 			t.Fatal(err)
 		}
 		if tc.expErr != nil {
-			t.Fatalf("expected error: %v", tc.expErr)
+			t.Fatalf("expected error: %v got %v", tc.expErr, err)
 		}
-		tmr := time.NewTimer(900 * time.Millisecond)
+		tmr := time.NewTimer(500 * time.Millisecond)
 		select {
 		case time, ok := <-c:
 			t.Log("time received: ", time, " ", tc.termTime)
@@ -83,7 +93,7 @@ func TestSpotermNofify(t *testing.T) {
 			}
 		case <-tmr.C:
 			tmr.Stop()
-			t.Logf("timeout")
+			t.Logf("test timeout")
 			if !tc.chOpen {
 				t.Fatalf("expected channel closed")
 			}
