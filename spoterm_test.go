@@ -52,7 +52,7 @@ func TestSpotermNofify(t *testing.T) {
 
 	tp, nt, pi := termPath, httpTimeout, pollInterval
 	defer func() { termPath, httpTimeout, pollInterval = tp, nt, pi }()
-	pollInterval = 200 * time.Millisecond
+	pollInterval = 400 * time.Millisecond
 	httpTimeout = 100 * time.Millisecond
 
 	for _, tc := range spotermTests {
@@ -62,12 +62,16 @@ func TestSpotermNofify(t *testing.T) {
 		termPath = server.URL
 
 		c, err := SpotermNotify()
-		if err != nil &&
-			err != tc.expErr &&
-			!strings.Contains(err.Error(), tc.expErr.Error()) {
+		if err != nil {
+			if strings.Contains(err.Error(), tc.expErr.Error()) {
+				return // error expected
+			}
 			t.Fatal(err)
 		}
-		tmr := time.NewTimer(300 * time.Millisecond)
+		if tc.expErr != nil {
+			t.Fatalf("expected error: %v", tc.expErr)
+		}
+		tmr := time.NewTimer(900 * time.Millisecond)
 		select {
 		case time, ok := <-c:
 			t.Log("time received: ", time, " ", tc.termTime)
