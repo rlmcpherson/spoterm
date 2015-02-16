@@ -19,7 +19,7 @@ const (
 
 var termPath string = "http://169.254.169.254/latest/meta-data/spot/termination-time"
 var pollInterval time.Duration = 5 * time.Second
-var httpTimeout time.Duration = 2 * time.Second
+var httpTimeout time.Duration = 4 * time.Second
 
 // SpotermNotify returns a channel of time.Time or an error.
 // When the spot termination-time is set in instance metadata, the time is sent
@@ -29,7 +29,6 @@ var httpTimeout time.Duration = 2 * time.Second
 // See http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-interruptions.html
 func SpotermNotify() (<-chan time.Time, error) {
 	tc := make(chan time.Time, 1)
-	ticker := time.NewTicker(pollInterval)
 
 	// poll for errors once before returning
 	if _, err := pollInstanceMetadata(); err != nil {
@@ -37,14 +36,16 @@ func SpotermNotify() (<-chan time.Time, error) {
 		return nil, err
 	}
 	go func() {
+		ticker := time.NewTicker(pollInterval)
+		defer ticker.Stop()
+		defer close(tc)
 		for _ = range ticker.C {
 			ts, err := pollInstanceMetadata()
-			if err != nil || !ts.IsZero() {
-				ticker.Stop()
-				if !ts.IsZero() {
-					tc <- ts
-				}
-				close(tc)
+			if err != nil {
+				return
+			}
+			if !ts.IsZero() {
+				tc <- ts
 				return
 			}
 
@@ -60,7 +61,7 @@ func pollInstanceMetadata() (t time.Time, err error) {
 	if err != nil {
 		if strings.Contains(err.Error(), "request canceled") ||
 			strings.Contains(err.Error(), "dial tcp") {
-			return t, fmt.Errorf("must run on EC2 instance: %v", err)
+			err = fmt.Errorf("must run on EC2 instance: %v", err)
 		}
 		return
 	}
@@ -70,7 +71,7 @@ func pollInstanceMetadata() (t time.Time, err error) {
 		return
 	}
 	if resp.StatusCode != 200 {
-		return t, fmt.Errorf("reponse error %d", resp.StatusCode)
+		return t, fmt.Errorf("response error %d", resp.StatusCode)
 	}
 	ts, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
